@@ -1,0 +1,22 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+cmdkit = "*"
+toml = "*"
+pandas = "*"
+matplotlib = "*"
+tplot = "*"
+rich = "*"
+
+[dev-packages]
+plot = {path = ".", editable = true}
+pytest = "*"
+hypothesis = "*"
+mypy = "*"
+ipython = "*"
+
+[requires]
+python_version = "3.9"
