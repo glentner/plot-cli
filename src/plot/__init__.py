@@ -34,7 +34,7 @@ log = logging.getLogger('plot')
 APP_NAME = 'plot'
 APP_USAGE = f"""\
 usage: {APP_NAME} [-h] [-v] FILE ...
-Create plot of input data.\
+Simple command-line plotting tool.\
 """
 
 APP_HELP = f"""\

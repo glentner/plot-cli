@@ -28,7 +28,7 @@ setup(
     name             = 'plot',
     version          = version,
     author           = 'Geoffrey Lentner <glentner@purdue.edu>',
-    description      = 'Simple Plotting Command-Line Tool',
+    description      = 'Simple command-line plotting tool.',
     url              = 'https://github.com/glentner/plot-cli',
     license          = 'Apache Software License',
     packages         = find_packages('src'),

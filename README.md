@@ -1,4 +1,4 @@
-Plotting at the Command-Line
-============================
+Simple Command-line Plotting Tool
+=================================
 
 _under construction ..._
