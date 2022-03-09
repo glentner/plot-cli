@@ -31,7 +31,7 @@ from plot.data import DataSet
 __all__ = ['main', 'PlotApp', '__version__', ]
 
 # metadata
-__version__ = '0.1.0'
+__version__ = '0.2.0'
 
 # application logger
 log = logging.getLogger('plot')
