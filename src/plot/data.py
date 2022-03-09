@@ -86,13 +86,24 @@ class DataSet:
         else:
             return series
 
-    def set_index(self: DataSet, name: str = None, datetime_offset: str = None) -> None:
+    def set_type(self: DataSet, name: str, dtype: str) -> None:
+        """Apply a new `dtype` to column `name`."""
+        self.frame[name] = self.frame[name].astype(dtype)
+
+    def set_index(self: DataSet, name: str = None, timeseries_scale: str = None) -> None:
         """Set the index for the x-axis of the plot."""
         self.frame = self.frame.set_index(name)
-        if self.index.dtype == 'datetime64[ns]':
-            self.frame.index = self.frame.index.astype('int64') / 10**9
-        if datetime_offset:
-            self.frame.index = apply_datetime_offset(self.frame.index, offset=datetime_offset)
+        if self.index.dtype == 'datetime64[ns]' and timeseries_scale:
+            self.frame.index = self.frame.index.astype('int64') / 10 ** 9
+            self.frame.index = apply_datetime_offset(self.frame.index, offset=timeseries_scale)
+
+    def resample(self: DataSet, freq: str, agg: str = 'mean', scale: str = None) -> None:
+        """Resample a time-series DataSet."""
+        self.frame = self.frame.resample(freq).agg(agg)
+        if scale:
+            if self.index.dtype == 'datetime64[ns]':
+                self.frame.index = self.frame.index.astype('int64') / 10**9
+                self.frame.index = apply_datetime_offset(self.frame.index, offset=scale)
 
     @property
     def index(self: DataSet) -> Index:
@@ -103,3 +114,7 @@ class DataSet:
     def columns(self: DataSet) -> List[str]:
         """List of columns names."""
         return list(self.frame.columns)
+
+    def drop_missing(self: DataSet) -> None:
+        """Drop missing values."""
+        self.frame.dropna(inplace=True)

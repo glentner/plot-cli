@@ -29,15 +29,16 @@ class PlotInterface(ABC):
     xlabel: Optional[str]
     ylabel: Optional[str]
     size: Optional[Tuple[float, float]]
-    legendloc: Optional[str]
+    legend: Optional[str]
 
-    def __init__(self: PlotInterface, title: str = None, xlabel: str = None, ylabel: str = None,
-                 size: Tuple[float, float] = None, legendloc: str = None) -> None:
+    def __init__(self: PlotInterface,
+                 title: str = None, xlabel: str = None, ylabel: str = None,
+                 size: Tuple[float, float] = None, legend: str = None) -> None:
         self.title = title
         self.xlabel = xlabel
         self.ylabel = ylabel
         self.size = size
-        self.legendloc = legendloc
+        self.legend = legend
 
     @abstractmethod
     def setup(self: PlotInterface) -> None:
@@ -63,7 +64,12 @@ class TPlot(PlotInterface, ABC):
         if self.size:
             width, height = map(int, self.size)
         self.figure = tplot.Figure(title=self.title, xlabel=self.xlabel, ylabel=self.ylabel,
-                                   width=width, height=height, legendloc=self.legendloc)
+                                   width=width, height=height, legendloc=self.legend)
+
+    def draw(self: TPlot) -> None:
+        """Render the plot."""
+        print()  # leave a space!!
+        self.figure.show()
 
 
 class TPlotLine(TPlot):
@@ -72,10 +78,6 @@ class TPlotLine(TPlot):
     def add(self: TPlotLine, data: DataSet, column: str, **options) -> None:
         """Add data to plot."""
         self.figure.line(x=data.index, y=data[column], **options)
-
-    def draw(self: TPlotLine) -> None:
-        """Render the plot."""
-        self.figure.show()
 
 
 class TPlotHist(TPlot):
