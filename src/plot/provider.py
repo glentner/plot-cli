@@ -13,13 +13,13 @@ from abc import ABC, abstractmethod
 
 # external libs
 import tplot
-from pandas import Series
+from numpy import histogram
 
 # internal libs
 from plot.data import DataSet
 
 # public interface
-__all__ = ['PlotInterface', 'TPlot', 'TPlotLine', ]
+__all__ = ['PlotInterface', 'TPlot', 'TPlotLine', 'TPlotHist', ]
 
 
 class PlotInterface(ABC):
@@ -81,10 +81,10 @@ class TPlotLine(TPlot):
 class TPlotHist(TPlot):
     """Histogram plotting with `tplot`."""
 
-    def add(self: TPlotLine, x: Series, y: Series, **options) -> None:
+    def add(self: TPlotLine, data: DataSet, column: str, **options) -> None:
         """Add data to plot."""
-        self.figure.line(x=x, y=y, **options)
-
-    def draw(self: TPlotLine) -> None:
-        """Render the plot."""
-        self.figure.show()
+        hist, bin_edges = histogram(data[column],
+                                    bins=options.pop('bins', 10),
+                                    density=options.pop('density', None))
+        x = 0.5 * (bin_edges[:-1] + bin_edges[1:])
+        self.figure.bar(x=x, y=hist, **options)
