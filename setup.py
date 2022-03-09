@@ -21,7 +21,7 @@ with open('src/plot/__init__.py', mode='r') as source:
 
 
 # Core dependencies
-DEPENDENCIES = ['cmdkit', 'toml', 'pandas', 'tplot', 'matplotlib', ]
+DEPENDENCIES = ['cmdkit', 'toml', 'pandas', 'tplot', 'matplotlib', 'numpy', ]
 
 
 setup(

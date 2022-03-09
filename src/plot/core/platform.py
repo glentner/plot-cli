@@ -14,7 +14,7 @@ from cmdkit.config import Namespace
 __all__ = ['home', 'site', 'path']
 
 
-home = os.getenv('HOME')
+home = os.path.expanduser('~')
 site = os.path.join(home, '.plot')
 path = Namespace({
     'lib': os.path.join(site, 'lib'),
