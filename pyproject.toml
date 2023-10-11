@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "plot-cli"
-version = "0.2.0"
+version = "0.3.0"
 description = "Simple command-line plotting tool."
 readme = "README.md"
 homepage = "https://github.com/glentner/plot-cli"
