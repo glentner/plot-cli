@@ -30,7 +30,10 @@ from plot_cli.provider import PlotInterface, TPlot, TPlotLine, TPlotHist
 from plot_cli.data import DataSet
 
 # public interface
-__all__ = ['main', 'PlotApp', ]
+__all__ = ['main', 'PlotApp', '__version__', ]
+
+# metadata
+__version__ = get_version(__name__)
 
 # application logger
 log = Logger.with_name(__name__)
@@ -143,7 +146,7 @@ class PlotApp(Application):
     """Main application class."""
 
     interface = Interface(APP_NAME, APP_USAGE, APP_HELP, formatter=colorize_usage)
-    interface.add_argument('-v', '--version', action='version', version=get_version(__name__))
+    interface.add_argument('-v', '--version', action='version', version=__version__)
 
     source: str = '-'
     interface.add_argument('source', nargs='?', default=source)
