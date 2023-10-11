@@ -2,6 +2,7 @@
 name = "plot-cli"
 version = "0.3.0"
 description = "Simple command-line plotting tool."
+license = "MIT"
 readme = "README.md"
 homepage = "https://github.com/glentner/plot-cli"
 documentation = "https://plot-cli.readthedocs.io"
