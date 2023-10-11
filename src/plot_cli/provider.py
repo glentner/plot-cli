@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2022 Geoffrey Lentner
+# SPDX-FileCopyrightText: 2023 Geoffrey Lentner
 # SPDX-License-Identifier: Apache-2.0
 
 """Plotting interface implementations."""
@@ -16,7 +16,7 @@ import tplot
 from numpy import histogram
 
 # internal libs
-from plot.data import DataSet
+from plot_cli.data import DataSet
 
 # public interface
 __all__ = ['PlotInterface', 'TPlot', 'TPlotLine', 'TPlotHist', ]
@@ -84,7 +84,7 @@ class TPlotHist(TPlot):
     """Histogram plotting with `tplot`."""
 
     def add(self: TPlotLine, data: DataSet, column: str, **options) -> None:
-        """Add data to plot."""
+        """Add data to plot_cli."""
         hist, bin_edges = histogram(data[column],
                                     bins=options.pop('bins', 10),
                                     density=options.pop('density', None))
