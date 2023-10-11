@@ -19,9 +19,9 @@ from cmdkit.app import exit_status
 from cmdkit.config import ConfigurationError
 
 # internal libs
-from plot.core.ansi import Ansi
-from plot.core.config import config, blame
-from plot.core.exceptions import write_traceback
+from plot_cli.core.ansi import Ansi
+from plot_cli.core.config import config, blame
+from plot_cli.core.exceptions import write_traceback
 
 # public interface
 __all__ = ['HOSTNAME', 'handler', 'initialize_logging', ]
@@ -115,7 +115,7 @@ except Exception as error:
 
 
 # Null handler for library use
-logger = logging.getLogger('plot')
+logger = logging.getLogger('plot_cli')
 logger.setLevel(level)
 logger.addHandler(logging.NullHandler())
 

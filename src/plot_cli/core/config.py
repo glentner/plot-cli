@@ -18,8 +18,8 @@ from cmdkit.config import Namespace, Configuration, Environ, ConfigurationError
 from cmdkit.app import exit_status
 
 # internal libs
-from plot.core.platform import path
-from plot.core.exceptions import write_traceback
+from plot_cli.core.platform import path
+from plot_cli.core.exceptions import write_traceback
 
 # public interface
 __all__ = ['default', 'config', 'blame', ]

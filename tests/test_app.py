@@ -8,7 +8,7 @@
 from pytest import mark
 
 # internal libs
-from plot import __version__, PlotApp
+from plot_cli import __version__, PlotApp
 
 
 @mark.unit

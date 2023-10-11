@@ -15,7 +15,7 @@ __all__ = ['home', 'site', 'path']
 
 
 home = os.path.expanduser('~')
-site = os.path.join(home, '.plot')
+site = os.path.join(home, '.plot_cli')
 path = Namespace({
     'lib': os.path.join(site, 'lib'),
     'log': os.path.join(site, 'log'),

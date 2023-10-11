@@ -20,7 +20,7 @@ from cmdkit.app import exit_status
 from cmdkit.config import Namespace
 
 # internal libs
-from plot.core.platform import path as default_path
+from plot_cli.core.platform import path as default_path
 
 # public interface
 __all__ = ['display_critical', 'traceback_filepath', 'write_traceback', ]

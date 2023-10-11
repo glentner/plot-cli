@@ -22,10 +22,10 @@ from cmdkit.cli import Interface
 from cmdkit.config import ConfigurationError
 
 # internal libs
-from plot.core.exceptions import write_traceback
-from plot.core.logging import initialize_logging
-from plot.provider import PlotInterface, TPlot, TPlotLine, TPlotHist
-from plot.data import DataSet
+from plot_cli.core.exceptions import write_traceback
+from plot_cli.core.logging import initialize_logging
+from plot_cli.provider import PlotInterface, TPlot, TPlotLine, TPlotHist
+from plot_cli.data import DataSet
 
 # public interface
 __all__ = ['main', 'PlotApp', '__version__', ]
@@ -34,10 +34,10 @@ __all__ = ['main', 'PlotApp', '__version__', ]
 __version__ = '0.2.0'
 
 # application logger
-log = logging.getLogger('plot')
+log = logging.getLogger('plot_cli')
 
 
-APP_NAME = 'plot'
+APP_NAME = 'plot_cli'
 APP_USAGE = f"""\
 usage: {APP_NAME} [-h] [-v] FILE ...
 Simple command-line plotting tool.\
@@ -53,14 +53,14 @@ options:
 -x, --xdata             NAME      Field to use for x-axis.
 -y, --ydata             NAME...   Field(s) for y-axis.
 -b, --backend           NAME      Method for plotting data (default: tplot).
-    --plot-type         NAME      Type of plot to create (default: line).
-    --line                        Alias for --plot-type=line
-    --hist                        Alias for --plot-type=hist
+    --plot_cli-type         NAME      Type of plot_cli to create (default: line).
+    --line                        Alias for --plot_cli-type=line
+    --hist                        Alias for --plot_cli-type=hist
 
 formatting:
     --xlabel            STR       Content for x-axis label.
     --ylabel            STR       Content for y-axis label.
--t, --title             STR       Content for plot title.
+-t, --title             STR       Content for plot_cli title.
 -c, --color             SEQ       Comma-separated color names (e.g., blue,red,green).
 -s, --size              SHAPE     Width and height in pixels (default: 100,20).
 
@@ -84,7 +84,7 @@ timeseries:
 """
 
 
-# Mapping of provider and plot type interfaces
+# Mapping of provider and plot_cli type interfaces
 plot_interface: Dict[str, Dict[str, Type[PlotInterface]]] = {
     'tplot': {
         'line': TPlotLine,
@@ -124,7 +124,7 @@ class PlotApp(Application):
 
     plot_type: str = 'line'
     plot_type_interface = interface.add_mutually_exclusive_group()
-    plot_type_interface.add_argument('--plot-type', default=plot_type, choices=['line', ])
+    plot_type_interface.add_argument('--plot_cli-type', default=plot_type, choices=['line', ])
     plot_type_interface.add_argument('--line', action='store_const', const='line', dest='plot_type')
     plot_type_interface.add_argument('--hist', action='store_const', const='hist', dest='plot_type')
 
@@ -196,7 +196,7 @@ class PlotApp(Application):
         self.draw()
 
     def draw(self: PlotApp) -> None:
-        """Issue final render command to the finished plot."""
+        """Issue final render command to the finished plot_cli."""
         self.plotter.draw()
 
     @cached_property
@@ -239,12 +239,12 @@ class PlotApp(Application):
             return width - 10, height - 8
 
     def add_all(self: PlotApp, columns: List[str]) -> None:
-        """Add each `column` to the plot."""
+        """Add each `column` to the plot_cli."""
         for column, color in zip(columns, cycle(self.colors)):
             self.plotter.add(self.dataset, **self.prepare_plot_options(column=column, color=color, label=column))
 
     def prepare_plot_options(self: PlotApp, **options: Any) -> Dict[str, Any]:
-        """Prepare plot-type specify parameters, forward `options`."""
+        """Prepare plot_cli-type specify parameters, forward `options`."""
         if self.plot_type == 'line':
             return options
         if self.plot_type == 'hist':
