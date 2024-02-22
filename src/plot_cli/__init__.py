@@ -22,7 +22,6 @@ from cmdkit.app import Application, exit_status
 from cmdkit.cli import Interface
 from cmdkit.config import ConfigurationError
 from cmdkit.logging import Logger
-from cmdkit.ansi import italic, bold, COLOR_STDOUT, colorize_usage as default_colorize_usage
 
 # internal libs
 from plot_cli.config import write_traceback
@@ -41,7 +40,7 @@ log = Logger.with_name(__name__)
 
 APP_NAME = os.path.basename(sys.argv[0])
 APP_USAGE = f"""\
-Usage: 
+Usage:
   {APP_NAME} [-h] [-v] [FILE] [-x NAME] [-y NAME] [--line | --hist] ...
   Simple command-line plotting tool.\
 """
@@ -112,40 +111,10 @@ def split_size(spec: str, sep: str = ',') -> Tuple[float, float]:
     return width, height
 
 
-# Look-around pattern to negate matches within quotation marks
-# Whole quotations are formatted together
-NOT_QUOTED = (
-    r'(?=([^"]*"[^"]*")*[^"]*$)' +
-    r"(?=([^']*'[^']*')*[^']*$)" +
-    r'(?=([^`]*`[^`]*`)*[^`]*$)'
-)
-
-
-def format_special_args(text: str) -> str:
-    """Formatting special arguments."""
-    metavars = ['SEQ', 'SHAPE', 'POS', 'SCALE', 'FREQ']
-    metavars_pattern = r'\b(?P<arg>' + '|'.join(metavars) + r')\b'
-    return re.sub(metavars_pattern + NOT_QUOTED, italic(r'\g<arg>'), text)
-
-
-def format_headers(text: str) -> str:
-    """Formatting section headers."""
-    names = ['Formatting', 'Histogram', 'Timeseries']
-    return re.sub(r'(?P<name>' + '|'.join(names) + r'):' + NOT_QUOTED, bold(r'\g<name>:'), text)
-
-
-def colorize_usage(text: str) -> str:
-    """Apply additional formatting to usage/help text."""
-    if not COLOR_STDOUT:  # NOTE: usage is on stdout not stderr
-        return text
-    else:
-        return default_colorize_usage(format_headers(format_special_args(text)))
-
-
 class PlotApp(Application):
     """Main application class."""
 
-    interface = Interface(APP_NAME, APP_USAGE, APP_HELP, formatter=colorize_usage)
+    interface = Interface(APP_NAME, APP_USAGE, APP_HELP)
     interface.add_argument('-v', '--version', action='version', version=__version__)
 
     source: str = '-'
@@ -196,7 +165,7 @@ class PlotApp(Application):
     interface.add_argument('--drop-missing', action='store_true')
 
     colors: List[str] = default_colors
-    interface.add_argument('-c', '--color', type=color_list, default=colors)
+    interface.add_argument('-c', '--color', type=color_list, default=colors, dest='colors')
 
     title: Optional[str] = None
     interface.add_argument('-t', '--title', default=None)
