@@ -165,7 +165,7 @@ class PlotApp(Application):
     interface.add_argument('--drop-missing', action='store_true')
 
     colors: List[str] = default_colors
-    interface.add_argument('-c', '--color', type=color_list, default=colors)
+    interface.add_argument('-c', '--color', type=color_list, default=colors, dest='colors')
 
     title: Optional[str] = None
     interface.add_argument('-t', '--title', default=None)
