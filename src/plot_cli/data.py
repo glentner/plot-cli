@@ -14,7 +14,7 @@ import logging
 from io import StringIO
 
 # external libs
-from pandas import DataFrame, Series, Index, read_csv
+from pandas import DataFrame, Series, Index, read_csv, to_datetime
 
 # public interface
 __all__ = ['DataSet', ]
@@ -88,7 +88,10 @@ class DataSet:
 
     def set_type(self: DataSet, name: str, dtype: str) -> None:
         """Apply a new `dtype` to column `name`."""
-        self.frame[name] = self.frame[name].astype(dtype)
+        if dtype.startswith('datetime'):
+            self.frame[name] = to_datetime(self.frame[name])
+        else:
+            self.frame[name] = self.frame[name].astype(dtype)
 
     def set_index(self: DataSet, name: str = None, timeseries_scale: str = None) -> None:
         """Set the index for the x-axis of the plot."""
