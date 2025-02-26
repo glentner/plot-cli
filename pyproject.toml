@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "plot-cli"
-version = "0.3.1"
+version = "0.3.2"
 description = "Simple command-line plotting tool."
 license = "MIT"
 readme = "README.md"
@@ -16,6 +16,7 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "License :: OSI Approved :: MIT License",
 ]
 
@@ -24,13 +25,14 @@ plot-cli = "plot_cli:main"
 plot = "plot_cli:main"
 
 [tool.poetry.dependencies]
-python = ">=3.10,<3.13"
-cmdkit = {extras = ["toml"], version = "^2.7.4"}
-pandas = "^2.1.1"
+python = ">=3.10,<4.0"
+cmdkit = {extras = ["toml"], version = "^2.7.7"}
+pandas = "^2.2.2"
 tplot = "^0.3.4"
 
 [tool.poetry.group.dev.dependencies]
-ipython = "^8.16.1"
+ipython = "^8.26.0"
+pytest = "^8.3.2"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
