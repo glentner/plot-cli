@@ -11,7 +11,6 @@ from typing import Tuple, Dict, List, Type, Optional, Any
 # standard libs
 import os
 import sys
-import re
 from importlib.metadata import version as get_version
 from itertools import cycle
 from functools import partial, cached_property
@@ -191,7 +190,7 @@ class PlotApp(Application):
         Exception: partial(write_traceback, logger=log)
     }
 
-    dataset: DataSet = None
+    dataset: DataSet | None = None
 
     def run(self: PlotApp) -> None:
         """Run the program."""
