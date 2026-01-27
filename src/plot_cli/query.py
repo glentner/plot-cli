@@ -311,7 +311,13 @@ class QueryBuilder:
             # Time bucketing with aggregation
             interval_str = parse_bucket_interval(self.bucket_interval)
             x_select = f"time_bucket(INTERVAL '{interval_str}', \"{x_col}\") AS \"{x_col}\""
-            y_selects = [f"{self.agg_method.upper()}(\"{y}\") AS \"{y}\"" for y in y_cols]
+
+            # Special case: --count without y-columns counts rows per bucket
+            if self.agg_method.lower() == 'count' and not y_cols:
+                y_selects = ['COUNT(*) AS "count"']
+            else:
+                y_selects = [f"{self.agg_method.upper()}(\"{y}\") AS \"{y}\"" for y in y_cols]
+
             select_clause = ', '.join([x_select] + y_selects)
             group_clause = "GROUP BY 1 ORDER BY 1"
         else:
@@ -339,28 +345,43 @@ class QueryBuilder:
         # Determine aggregation method (default to SUM for PIVOT)
         agg = (self.agg_method or 'sum').upper()
 
-        # For now, only support single y column with PIVOT
-        y_col = y_cols[0] if y_cols else 'value'
+        # Special case: --count without y-columns counts rows per group
+        use_count_star = (agg == 'COUNT' and not y_cols)
+        y_col = 'count' if use_count_star else (y_cols[0] if y_cols else 'value')
 
         if self.bucket_interval:
             # PIVOT with time bucketing
             interval_str = parse_bucket_interval(self.bucket_interval)
+            if use_count_star:
+                agg_expr = 'COUNT(*) AS "count"'
+            else:
+                agg_expr = f'{agg}("{y_col}") AS "{y_col}"'
+
             inner_select = f"""
                 SELECT
                     time_bucket(INTERVAL '{interval_str}', "{x_col}") AS "{x_col}",
                     "{self.group_by}",
-                    {agg}("{y_col}") AS "{y_col}"
+                    {agg_expr}
                 FROM {from_clause}
                 {where_clause}
                 GROUP BY 1, 2
             """
         else:
             # PIVOT without bucketing
-            inner_select = f"""
-                SELECT "{x_col}", "{self.group_by}", "{y_col}"
-                FROM {from_clause}
-                {where_clause}
-            """
+            if use_count_star:
+                # Need to aggregate even without bucket for count
+                inner_select = f"""
+                    SELECT "{x_col}", "{self.group_by}", COUNT(*) AS "count"
+                    FROM {from_clause}
+                    {where_clause}
+                    GROUP BY 1, 2
+                """
+            else:
+                inner_select = f"""
+                    SELECT "{x_col}", "{self.group_by}", "{y_col}"
+                    FROM {from_clause}
+                    {where_clause}
+                """
 
         query = f"""
             PIVOT ({inner_select})
