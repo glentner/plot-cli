@@ -1,16 +1,20 @@
-[tool.poetry]
+[project]
 name = "plot-cli"
 version = "0.3.2"
 description = "Simple command-line plotting tool."
-license = "MIT"
-readme = "README.md"
-homepage = "https://github.com/glentner/plot-cli"
-documentation = "https://plot-cli.readthedocs.io"
-repository = "https://github.com/glentner/plot-cli"
 authors = [
-    "Geoffrey Lentner <glentner@purdue.edu>",
+    { name = "Geoffrey Lentner", email = "glentner@purdue.edu" },
 ]
-keywords = ["command-line", "plotting", "utility"]
+readme = "README.md"
+license = "MIT"
+homepage = "https://github.com/glentner/plot-cli"
+repository = "https://github.com/glentner/plot-cli"
+documentation = "https://plot-cli.readthedocs.io"
+keywords = [
+    "command-line",
+    "plotting",
+    "utility",
+]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Programming Language :: Python :: 3.10",
@@ -19,24 +23,28 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "License :: OSI Approved :: MIT License",
 ]
+requires-python = ">=3.10"
+dependencies = [
+    "cmdkit[toml]>=2.7.7",
+    "pandas>=2.2.2",
+    "tplot>=0.3.4",
+    "duckdb>=1.0.0",
+]
 
-[tool.poetry.scripts]
+[dependency-groups]
+dev = [
+    "ipython>=8.26.0",
+    "pytest>=8.3.2",
+    "hatchling>=1.27.0",
+]
+
+[project.scripts]
 plot-cli = "plot_cli:main"
 plot = "plot_cli:main"
 
-[tool.poetry.dependencies]
-python = ">=3.10,<4.0"
-cmdkit = {extras = ["toml"], version = "^2.7.7"}
-pandas = "^2.2.2"
-tplot = "^0.3.4"
-
-[tool.poetry.group.dev.dependencies]
-ipython = "^8.26.0"
-pytest = "^8.3.2"
-
 [build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [tool.pytest.ini_options]
 addopts = ["--rootdir", "tests", "--strict-markers", ]
