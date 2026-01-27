@@ -54,6 +54,7 @@ Arguments:
 Options:
   -x, --xdata        NAME     Field to use for x-axis.
   -y, --ydata        NAME...  Field(s) for y-axis.
+      --by           NAME     Group by column to plot multiple series.
       --format       NAME     Input format: csv, json, ndjson, parquet (default: auto).
       --plot-type    NAME     Type of plot to create (default: line).
       --line                  Alias for --plot-type=line
@@ -138,6 +139,10 @@ class PlotApp(Application):
 
     ydata: List[str] = []
     interface.add_argument('-y', '--ydata', nargs='*', default=[])
+
+    group_by: Optional[str] = None
+    interface.add_argument('--by', default=None, dest='group_by',
+                           help='Group by column to plot multiple series.')
 
     # Filtering options
     where_clause: Optional[str] = None
@@ -246,6 +251,7 @@ class PlotApp(Application):
             format=self.input_format,
             x_column=self.xdata,
             y_columns=self.ydata if self.ydata else None,
+            group_by=self.group_by,
             where_clause=self.where_clause,
             after_datetime=self.after_datetime,
             before_datetime=self.before_datetime,
@@ -270,6 +276,7 @@ class PlotApp(Application):
 
     def _render_plot(self: PlotApp) -> None:
         """Render the plot to terminal."""
+        import math
         y_columns = list(self._dataframe.columns[1:])
 
         # Get x values - convert to epoch if using TimeSeriesFigure
@@ -279,21 +286,33 @@ class PlotApp(Application):
             x_values = self._dataframe[self._x_column].tolist()
 
         for column, color in zip(y_columns, cycle(self.colors)):
+            y_values = self._dataframe[column].tolist()
+
             if self.plot_type == 'line':
-                self.figure.line(
-                    x=x_values,
-                    y=self._dataframe[column].tolist(),
-                    color=color,
-                    label=column,
-                )
+                # Filter out NaN values - tplot can't handle them
+                valid_pairs = [
+                    (x, y) for x, y in zip(x_values, y_values)
+                    if not (isinstance(y, float) and math.isnan(y))
+                ]
+                if valid_pairs:
+                    x_valid, y_valid = zip(*valid_pairs)
+                    self.figure.line(
+                        x=list(x_valid),
+                        y=list(y_valid),
+                        color=color,
+                        label=column,
+                    )
             else:
-                self.figure.hist(
-                    data=self._dataframe[column].tolist(),
-                    bins=self.hist_bins,
-                    density=self.hist_density,
-                    color=color,
-                    label=column,
-                )
+                # For histograms, filter NaN values
+                valid_data = [y for y in y_values if not (isinstance(y, float) and math.isnan(y))]
+                if valid_data:
+                    self.figure.hist(
+                        data=valid_data,
+                        bins=self.hist_bins,
+                        density=self.hist_density,
+                        color=color,
+                        label=column,
+                    )
         self.figure.draw()
 
     @cached_property

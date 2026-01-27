@@ -133,6 +133,7 @@ class QueryBuilder:
     format: Optional[str]
     x_column: Optional[str]
     y_columns: List[str]
+    group_by: Optional[str]
     where_clause: Optional[str]
     after_datetime: Optional[str]
     before_datetime: Optional[str]
@@ -148,6 +149,7 @@ class QueryBuilder:
         format: Optional[str] = None,
         x_column: Optional[str] = None,
         y_columns: Optional[List[str]] = None,
+        group_by: Optional[str] = None,
         where_clause: Optional[str] = None,
         after_datetime: Optional[str] = None,
         before_datetime: Optional[str] = None,
@@ -161,6 +163,7 @@ class QueryBuilder:
         self.format = format
         self.x_column = x_column
         self.y_columns = y_columns or []
+        self.group_by = group_by
         self.where_clause = where_clause
         self.after_datetime = after_datetime
         self.before_datetime = before_datetime
@@ -245,15 +248,34 @@ class QueryBuilder:
         self._cached_columns = [desc[0] for desc in result.description]
         return self._cached_columns
 
+    def _build_where_clause(self: QueryBuilder, x_col: str) -> str:
+        """Build WHERE clause from filter options."""
+        where_parts = []
+        if self.where_clause:
+            where_parts.append(f"({self.where_clause})")
+        if self.after_datetime:
+            where_parts.append(f'"{x_col}" > \'{self.after_datetime}\'')
+        if self.before_datetime:
+            where_parts.append(f'"{x_col}" < \'{self.before_datetime}\'')
+
+        if where_parts:
+            return 'WHERE ' + ' AND '.join(where_parts)
+        return ''
+
+    def _build_from_clause(self: QueryBuilder) -> str:
+        """Build FROM clause."""
+        if self.source == '-':
+            return '__stdin_data'
+        read_func = self._read_function()
+        source_expr = self._build_source_expr()
+        return f"{read_func}({source_expr})"
+
     def build_query(self: QueryBuilder) -> str:
         """
         Build the SQL query based on configured options.
 
         Returns the SQL string to execute.
         """
-        read_func = self._read_function()
-        source_expr = self._build_source_expr()
-
         # Determine columns to select
         columns = self.get_columns()
         x_col = self.x_column or columns[0]
@@ -261,11 +283,30 @@ class QueryBuilder:
         if self.y_columns:
             y_cols = self.y_columns
         else:
-            # All numeric columns except x
-            # TODO: Filter to numeric columns only
-            y_cols = [c for c in columns if c != x_col]
+            # All columns except x and group_by
+            exclude = {x_col}
+            if self.group_by:
+                exclude.add(self.group_by)
+            y_cols = [c for c in columns if c not in exclude]
 
-        # Build SELECT clause
+        from_clause = self._build_from_clause()
+        where_clause = self._build_where_clause(x_col)
+
+        # Use PIVOT query when group_by is specified
+        if self.group_by:
+            return self._build_pivot_query(x_col, y_cols, from_clause, where_clause)
+
+        # Standard query (no grouping)
+        return self._build_standard_query(x_col, y_cols, from_clause, where_clause)
+
+    def _build_standard_query(
+        self: QueryBuilder,
+        x_col: str,
+        y_cols: List[str],
+        from_clause: str,
+        where_clause: str,
+    ) -> str:
+        """Build standard SELECT query without PIVOT."""
         if self.bucket_interval and self.agg_method:
             # Time bucketing with aggregation
             interval_str = parse_bucket_interval(self.bucket_interval)
@@ -278,26 +319,55 @@ class QueryBuilder:
             select_clause = ', '.join([f'"{x_col}"'] + [f'"{y}"' for y in y_cols])
             group_clause = f'ORDER BY "{x_col}"'
 
-        # Build WHERE clause
-        where_parts = []
-        if self.where_clause:
-            where_parts.append(f"({self.where_clause})")
-        if self.after_datetime:
-            where_parts.append(f'"{x_col}" > \'{self.after_datetime}\'')
-        if self.before_datetime:
-            where_parts.append(f'"{x_col}" < \'{self.before_datetime}\'')
-
-        where_clause = ''
-        if where_parts:
-            where_clause = 'WHERE ' + ' AND '.join(where_parts)
-
-        # Build full query
-        if self.source == '-':
-            from_clause = '__stdin_data'
-        else:
-            from_clause = f"{read_func}({source_expr})"
-
         query = f"SELECT {select_clause} FROM {from_clause} {where_clause} {group_clause}"
+        log.debug(f'Query: {query}')
+        return query
+
+    def _build_pivot_query(
+        self: QueryBuilder,
+        x_col: str,
+        y_cols: List[str],
+        from_clause: str,
+        where_clause: str,
+    ) -> str:
+        """
+        Build PIVOT query for --by grouping.
+
+        Transforms long-format data into wide format where each unique value
+        in the group_by column becomes a separate y-column.
+        """
+        # Determine aggregation method (default to SUM for PIVOT)
+        agg = (self.agg_method or 'sum').upper()
+
+        # For now, only support single y column with PIVOT
+        y_col = y_cols[0] if y_cols else 'value'
+
+        if self.bucket_interval:
+            # PIVOT with time bucketing
+            interval_str = parse_bucket_interval(self.bucket_interval)
+            inner_select = f"""
+                SELECT
+                    time_bucket(INTERVAL '{interval_str}', "{x_col}") AS "{x_col}",
+                    "{self.group_by}",
+                    {agg}("{y_col}") AS "{y_col}"
+                FROM {from_clause}
+                {where_clause}
+                GROUP BY 1, 2
+            """
+        else:
+            # PIVOT without bucketing
+            inner_select = f"""
+                SELECT "{x_col}", "{self.group_by}", "{y_col}"
+                FROM {from_clause}
+                {where_clause}
+            """
+
+        query = f"""
+            PIVOT ({inner_select})
+            ON "{self.group_by}"
+            USING SUM("{y_col}")
+            ORDER BY "{x_col}"
+        """
         log.debug(f'Query: {query}')
         return query
 
