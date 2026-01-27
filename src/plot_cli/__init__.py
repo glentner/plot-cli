@@ -26,7 +26,7 @@ from pandas import DataFrame
 # Internal libs
 from plot_cli.config import write_traceback
 from plot_cli.query import QueryBuilder
-from plot_cli.plot import Figure
+from plot_cli.plot import Figure, TimeSeriesFigure, generate_time_ticks
 
 # Public interface
 __all__ = ['main', 'PlotApp', '__version__', ]
@@ -271,24 +271,75 @@ class PlotApp(Application):
     def _render_plot(self: PlotApp) -> None:
         """Render the plot to terminal."""
         y_columns = list(self._dataframe.columns[1:])
+
+        # Get x values - convert to epoch if using TimeSeriesFigure
+        if self._use_timeseries_figure:
+            x_values = [v.timestamp() for v in self._dataframe[self._x_column]]
+        else:
+            x_values = self._dataframe[self._x_column].tolist()
+
         for column, color in zip(y_columns, cycle(self.colors)):
-            self.figure.line(
-                x=self._dataframe[self._x_column].tolist(),
-                y=self._dataframe[column].tolist(),
-                color=color,
-                label=column,
-            ) if self.plot_type == 'line' else self.figure.hist(
-                data=self._dataframe[column].tolist(),
-                bins=self.hist_bins,
-                density=self.hist_density,
-                color=color,
-                label=column,
-            )
+            if self.plot_type == 'line':
+                self.figure.line(
+                    x=x_values,
+                    y=self._dataframe[column].tolist(),
+                    color=color,
+                    label=column,
+                )
+            else:
+                self.figure.hist(
+                    data=self._dataframe[column].tolist(),
+                    bins=self.hist_bins,
+                    density=self.hist_density,
+                    color=color,
+                    label=column,
+                )
         self.figure.draw()
 
     @cached_property
     def figure(self: PlotApp) -> Figure:
         """Create and return the Figure instance."""
+        # Use TimeSeriesFigure for datetime x-axis without scale conversion
+        if self._use_timeseries_figure:
+            x_values = self._dataframe[self._x_column].tolist()
+            # Convert timestamps to epoch for tick generation
+            min_epoch = x_values[0].timestamp()
+            max_epoch = x_values[-1].timestamp()
+            ticks = generate_time_ticks(min_epoch, max_epoch)
+
+            # Build formatter based on tick labels
+            tick_map = dict(zip(ticks.tick_epochs, ticks.tick_labels))
+
+            def formatter(epoch: float) -> str:
+                # Find closest tick label or format generically
+                if epoch in tick_map:
+                    return tick_map[epoch]
+                from datetime import datetime
+                # Use UTC to match pandas timestamp behavior
+                dt = datetime.utcfromtimestamp(epoch)
+                if ticks.granularity.name == 'HOURS':
+                    return f"{dt.hour:02d}:{dt.minute:02d}"
+                elif ticks.granularity.name == 'MINUTES':
+                    return f"{dt.hour:02d}:{dt.minute:02d}"
+                elif ticks.granularity.name == 'DAYS':
+                    return f"{dt.month:02d}-{dt.day:02d}"
+                return str(epoch)
+
+            secondary_label = None
+            if ticks.secondary_labels:
+                secondary_label = ticks.secondary_labels[0][1]
+
+            return TimeSeriesFigure(
+                title=self.plot_title,
+                xlabel=self.plot_xlabel,
+                ylabel=self.plot_ylabel,
+                size=self.plot_size,
+                legend=self.legend,
+                x_tick_formatter=formatter,
+                x_tick_values=ticks.tick_epochs,
+                secondary_xlabel=secondary_label,
+            )
+
         return Figure(
             title=self.plot_title,
             xlabel=self.plot_xlabel,
@@ -296,6 +347,19 @@ class PlotApp(Application):
             size=self.plot_size,
             legend=self.legend,
         )
+
+    @property
+    def _use_timeseries_figure(self: PlotApp) -> bool:
+        """Whether to use TimeSeriesFigure for smart datetime axis labels."""
+        # Use TimeSeriesFigure when:
+        # - timeseries flag is set
+        # - scale is NOT set (scale converts to numeric, so no datetime formatting needed)
+        # - x-axis data is datetime type
+        if not self.timeseries or self.timeseries_scale:
+            return False
+        # Check if x-column is datetime
+        x_dtype = str(self._dataframe[self._x_column].dtype)
+        return 'datetime' in x_dtype
 
     @cached_property
     def plot_title(self: PlotApp) -> str:
