@@ -6,12 +6,12 @@
 
 # Type annotations
 from __future__ import annotations
-from typing import List, Optional, IO
+from typing import List, Optional, Dict, Any
 
 # Standard libs
+import re
 import sys
 import logging
-from io import StringIO
 from pathlib import Path
 
 # External libs
@@ -19,10 +19,105 @@ import duckdb
 from pandas import DataFrame
 
 # Public interface
-__all__ = ['QueryBuilder', ]
+__all__ = ['QueryBuilder', 'apply_datetime_scale', ]
 
 # Module level logger
 log = logging.getLogger(__name__)
+
+
+# Scale factors for datetime offset conversion
+DAY_SCALE = 86400
+HOUR_SCALE = 3600
+MINUTE_SCALE = 60
+SECOND_SCALE = 1
+
+OFFSET_PATTERN = re.compile(
+    r'([+-]?)(d|day|days|h|hour|hours|m|min|mins|minute|minutes|s|sec|secs|second|seconds)'
+)
+DATETIME_SCALE: Dict[str, int] = {
+    'd': DAY_SCALE, 'day': DAY_SCALE, 'days': DAY_SCALE,
+    'h': HOUR_SCALE, 'hour': HOUR_SCALE, 'hours': HOUR_SCALE,
+    'm': MINUTE_SCALE, 'min': MINUTE_SCALE, 'mins': MINUTE_SCALE,
+    'minute': MINUTE_SCALE, 'minutes': MINUTE_SCALE,
+    's': SECOND_SCALE, 'sec': SECOND_SCALE, 'secs': SECOND_SCALE,
+    'second': SECOND_SCALE, 'seconds': SECOND_SCALE,
+}
+
+
+def apply_datetime_scale(df: DataFrame, column: str, scale: str) -> DataFrame:
+    """
+    Apply datetime scale offset to convert timestamps to relative values.
+
+    Args:
+        df: DataFrame with datetime column
+        column: Name of the datetime column
+        scale: Offset specification (e.g., '+hours', '-days', 'minutes')
+
+    Returns:
+        DataFrame with column converted to numeric offset values.
+    """
+    if match := OFFSET_PATTERN.match(scale):
+        sign, scale_name = match.groups()
+        divisor = DATETIME_SCALE[scale_name]
+
+        # Convert datetime to epoch seconds
+        # DuckDB returns datetime64[us] (microseconds), pandas uses int64 representation
+        df = df.copy()
+        dtype_str = str(df[column].dtype)
+        if 'datetime64[us]' in dtype_str:
+            # Microsecond precision (DuckDB default)
+            epoch_values = df[column].astype('int64') / 10**6
+        elif 'datetime64[ns]' in dtype_str:
+            # Nanosecond precision (pandas default)
+            epoch_values = df[column].astype('int64') / 10**9
+        elif 'datetime64[ms]' in dtype_str:
+            # Millisecond precision
+            epoch_values = df[column].astype('int64') / 10**3
+        else:
+            # Try to convert via timestamp
+            epoch_values = df[column].apply(lambda x: x.timestamp() if hasattr(x, 'timestamp') else float(x))
+
+        # Apply offset from start or end
+        if sign in ('', '+'):
+            df[column] = (epoch_values - epoch_values.iloc[0]) / divisor
+        else:
+            df[column] = (epoch_values - epoch_values.iloc[-1]) / divisor
+
+        return df
+    else:
+        raise ValueError(f"Unsupported scale offset: '{scale}'")
+
+
+# Bucket interval patterns for parsing shorthand like '15min', '1h', '1d'
+BUCKET_PATTERN = re.compile(r'^(\d+)\s*(s|sec|secs|second|seconds|m|min|mins|minute|minutes|h|hour|hours|d|day|days)$')
+BUCKET_UNITS: Dict[str, str] = {
+    's': 'seconds', 'sec': 'seconds', 'secs': 'seconds', 'second': 'seconds', 'seconds': 'seconds',
+    'm': 'minutes', 'min': 'minutes', 'mins': 'minutes', 'minute': 'minutes', 'minutes': 'minutes',
+    'h': 'hours', 'hour': 'hours', 'hours': 'hours',
+    'd': 'days', 'day': 'days', 'days': 'days',
+}
+
+
+def parse_bucket_interval(interval: str) -> str:
+    """
+    Parse bucket interval shorthand into DuckDB INTERVAL syntax.
+
+    Args:
+        interval: Shorthand like '15min', '1h', '1d' or full syntax like '15 minutes'
+
+    Returns:
+        DuckDB-compatible interval string (e.g., '15 minutes')
+    """
+    # Already in full format?
+    if ' ' in interval:
+        return interval
+
+    if match := BUCKET_PATTERN.match(interval.lower()):
+        value, unit = match.groups()
+        return f"{value} {BUCKET_UNITS[unit]}"
+
+    # Return as-is and let DuckDB handle it
+    return interval
 
 
 class QueryBuilder:
@@ -44,6 +139,8 @@ class QueryBuilder:
     bucket_interval: Optional[str]
     agg_method: Optional[str]
     timeseries: bool
+    scale: Optional[str]
+    _cached_columns: Optional[List[str]]
 
     def __init__(
         self: QueryBuilder,
@@ -57,6 +154,7 @@ class QueryBuilder:
         bucket_interval: Optional[str] = None,
         agg_method: Optional[str] = None,
         timeseries: bool = False,
+        scale: Optional[str] = None,
     ) -> None:
         """Initialize query builder with data source and options."""
         self.source = source
@@ -69,7 +167,10 @@ class QueryBuilder:
         self.bucket_interval = bucket_interval
         self.agg_method = agg_method
         self.timeseries = timeseries
+        self.scale = scale
         self._conn: Optional[duckdb.DuckDBPyConnection] = None
+        self._cached_columns: Optional[List[str]] = None
+        self._stdin_loaded: bool = False
 
     @property
     def conn(self: QueryBuilder) -> duckdb.DuckDBPyConnection:
@@ -116,17 +217,23 @@ class QueryBuilder:
 
     def _load_stdin(self: QueryBuilder) -> None:
         """Load stdin data into a temporary table."""
-        if self.source != '-':
+        if self.source != '-' or self._stdin_loaded:
             return
         log.info('Reading from <stdin>')
-        data = sys.stdin.read()
         fmt = self.detect_format()
         if fmt == 'csv':
-            self.conn.execute(f"CREATE TEMP TABLE __stdin_data AS SELECT * FROM read_csv_auto('/dev/stdin')")
-        # TODO: Handle other formats for stdin (json, ndjson)
+            self.conn.execute("CREATE TEMP TABLE __stdin_data AS SELECT * FROM read_csv_auto('/dev/stdin')")
+        elif fmt in ('json', 'ndjson'):
+            self.conn.execute("CREATE TEMP TABLE __stdin_data AS SELECT * FROM read_json_auto('/dev/stdin')")
+        else:
+            raise ValueError(f"Unsupported stdin format: {fmt}")
+        self._stdin_loaded = True
 
     def get_columns(self: QueryBuilder) -> List[str]:
         """Get available column names from the data source."""
+        if self._cached_columns is not None:
+            return self._cached_columns
+
         if self.source == '-':
             self._load_stdin()
             result = self.conn.execute("SELECT * FROM __stdin_data LIMIT 0")
@@ -134,7 +241,9 @@ class QueryBuilder:
             read_func = self._read_function()
             source_expr = self._build_source_expr()
             result = self.conn.execute(f"SELECT * FROM {read_func}({source_expr}) LIMIT 0")
-        return [desc[0] for desc in result.description]
+
+        self._cached_columns = [desc[0] for desc in result.description]
+        return self._cached_columns
 
     def build_query(self: QueryBuilder) -> str:
         """
@@ -159,24 +268,24 @@ class QueryBuilder:
         # Build SELECT clause
         if self.bucket_interval and self.agg_method:
             # Time bucketing with aggregation
-            # TODO: Implement time_bucket() query building
-            x_select = f"time_bucket(INTERVAL '{self.bucket_interval}', {x_col}) AS {x_col}"
-            y_selects = [f"{self.agg_method.upper()}({y}) AS {y}" for y in y_cols]
+            interval_str = parse_bucket_interval(self.bucket_interval)
+            x_select = f"time_bucket(INTERVAL '{interval_str}', \"{x_col}\") AS \"{x_col}\""
+            y_selects = [f"{self.agg_method.upper()}(\"{y}\") AS \"{y}\"" for y in y_cols]
             select_clause = ', '.join([x_select] + y_selects)
-            group_clause = f"GROUP BY 1 ORDER BY 1"
+            group_clause = "GROUP BY 1 ORDER BY 1"
         else:
-            # Simple select
-            select_clause = ', '.join([x_col] + y_cols)
-            group_clause = f"ORDER BY {x_col}"
+            # Simple select - quote column names for safety
+            select_clause = ', '.join([f'"{x_col}"'] + [f'"{y}"' for y in y_cols])
+            group_clause = f'ORDER BY "{x_col}"'
 
         # Build WHERE clause
         where_parts = []
         if self.where_clause:
             where_parts.append(f"({self.where_clause})")
         if self.after_datetime:
-            where_parts.append(f"{x_col} > '{self.after_datetime}'")
+            where_parts.append(f'"{x_col}" > \'{self.after_datetime}\'')
         if self.before_datetime:
-            where_parts.append(f"{x_col} < '{self.before_datetime}'")
+            where_parts.append(f'"{x_col}" < \'{self.before_datetime}\'')
 
         where_clause = ''
         if where_parts:
@@ -197,8 +306,16 @@ class QueryBuilder:
         if self.source == '-':
             self._load_stdin()
         query = self.build_query()
+        log.debug(f'Executing: {query}')
         result = self.conn.execute(query)
-        return result.fetchdf()
+        df = result.fetchdf()
+
+        # Apply scale offset if specified
+        if self.scale:
+            x_col = self.x_column or df.columns[0]
+            df = apply_datetime_scale(df, x_col, self.scale)
+
+        return df
 
     @classmethod
     def from_file(

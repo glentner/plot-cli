@@ -252,6 +252,7 @@ class PlotApp(Application):
             bucket_interval=self.bucket_interval,
             agg_method=self.agg_method,
             timeseries=self.timeseries,
+            scale=self.timeseries_scale,
         )
         self._dataframe = query.execute()
         self._x_column = self._dataframe.columns[0]
