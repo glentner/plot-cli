@@ -1,6 +1,6 @@
 [project]
 name = "plot-cli"
-version = "0.3.2"
+version = "0.4.0"
 description = "Simple command-line plotting tool."
 authors = [
     { name = "Geoffrey Lentner", email = "glentner@purdue.edu" },
